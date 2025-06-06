@@ -12,11 +12,11 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: "AIzaSyDXst7CL1-ww_ir_cOUl-uN1_O_35FNTJU",
-    authDomain: "self-careapp-8ac9e.firebaseapp.com",
-    projectId: "self-careapp-8ac9e",
-    storageBucket: "self-careapp-8ac9e.appspot.com",
-    messagingSenderId: "1003605900474",
-    appId: "1:1003605900474:web:6b6e8a841d63dc5f929683",
+    apiKey: "AIzaSyA2QwQwQwQwQwQwQwQwQwQwQwQwQwQwQwQ",
+    authDomain: "rumahbilliard-f153c.firebaseapp.com",
+    projectId: "rumahbilliard-f153c",
+    storageBucket: "rumahbilliard-f153c.appspot.com",
+    messagingSenderId: "1090123456789",
+    appId: "1:1090123456789:web:abcdef1234567890abcdef",
   );
 }

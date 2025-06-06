@@ -1,5 +1,7 @@
+import 'dart:convert';
+import 'package:crypto/crypto.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 class RegisterForm extends StatefulWidget {
   const RegisterForm({super.key});
@@ -15,6 +17,8 @@ class _RegisterFormState extends State<RegisterForm> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
   bool _obscureText = true;
+  String _selectedRole = 'Pengusaha';
+  final List<String> _roles = ['Pengusaha', 'Customer'];
 
   @override
   void dispose() {
@@ -27,11 +31,33 @@ class _RegisterFormState extends State<RegisterForm> {
 
   void _register() async {
     if (_formKey.currentState!.validate()) {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('username', _usernameController.text);
-      await prefs.setString('password', _passwordController.text);
-      await prefs.setString('name', _nameController.text);
-      await prefs.setString('phone', _phoneController.text);
+      // Firestore: check if username exists
+      final username = _usernameController.text.trim();
+      final userQuery = await FirebaseFirestore.instance
+          .collection('users')
+          .where('username', isEqualTo: username)
+          .get();
+      if (userQuery.docs.isNotEmpty) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Username sudah terdaftar!')),
+        );
+        return;
+      }
+      // Hash password sebelum simpan
+      final password = _passwordController.text;
+      final hashedPass = sha256.convert(utf8.encode(password)).toString();
+      // Save new user to Firestore
+      await FirebaseFirestore.instance.collection('users').doc(username).set({
+        'username': username,
+        'password': hashedPass,
+        'name': _nameController.text,
+        'phone': _phoneController.text,
+        'role': _selectedRole,
+        'createdAt': FieldValue.serverTimestamp(),
+        'balance': 0.0,
+      });
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Registration successful! Please login.')),
       );
@@ -51,9 +77,9 @@ class _RegisterFormState extends State<RegisterForm> {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              Color(0xFFF9C8D9), // pink pastel
-              Color(0xFFF8BBD0), // soft pink
-              Color(0xFFFDE6F2), // pink pastel muda
+              Color(0xFF212121), // abu tua
+              Color(0xFF616161), // abu sedang
+              Color(0xFF000000), // hitam
             ],
           ),
         ),
@@ -73,125 +99,153 @@ class _RegisterFormState extends State<RegisterForm> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        'Self-care',
-                        style: TextStyle(
+                        'Billiard House',
+                        style: const TextStyle(
                           fontSize: 32,
                           fontWeight: FontWeight.bold,
-                          color: Color(0xFFF9C8D9), // pink pastel
-                          letterSpacing: 2,
+                          color: Colors.white,
+                          shadows: [
+                            Shadow(
+                              color: Colors.black54,
+                              offset: Offset(1, 1),
+                              blurRadius: 4,
+                            ),
+                          ],
                         ),
                       ),
                       const SizedBox(height: 16),
                       Text(
                         'Create your account',
-                        style: TextStyle(
-                          fontSize: 24,
+                        style: const TextStyle(
+                          fontSize: 28,
                           fontWeight: FontWeight.bold,
-                          color: Colors.deepPurple[700],
+                          color: Colors.white,
                           letterSpacing: 1.2,
+                          shadows: [
+                            Shadow(
+                              color: Colors.black54,
+                              offset: Offset(1, 1),
+                              blurRadius: 4,
+                            ),
+                          ],
                         ),
                       ),
                       const SizedBox(height: 8),
                       Text(
                         'Isi data diri untuk mendaftar',
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 16,
-                          color: Colors.grey[700],
+                          color: Colors.white,
+                          shadows: [
+                            Shadow(
+                              color: Colors.black54,
+                              offset: Offset(1, 1),
+                              blurRadius: 4,
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 32),
-                      TextFormField(
-                        controller: _nameController,
-                        decoration: const InputDecoration(
-                          labelText: 'Nama Lengkap',
-                          prefixIcon: Icon(Icons.person),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.all(Radius.circular(16)),
+                      const SizedBox(height: 24),
+                      DropdownButtonFormField<String>(
+                        value: _selectedRole,
+                        dropdownColor: Colors.black,
+                        style: const TextStyle(color: Colors.white, shadows: [Shadow(color: Colors.black54, offset: Offset(1,1), blurRadius: 4)]),
+                        decoration: InputDecoration(
+                          labelText: 'Daftar Sebagai',
+                          labelStyle: const TextStyle(color: Colors.white, shadows: [Shadow(color: Colors.black54, offset: Offset(1,1), blurRadius: 4)]),
+                          enabledBorder: OutlineInputBorder(
+                            borderSide: BorderSide(color: Colors.black54),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderSide: BorderSide(color: Colors.white),
                           ),
                         ),
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Masukkan nama lengkap';
-                          }
-                          return null;
-                        },
+                        items: _roles.map((role) => DropdownMenuItem(
+                          value: role,
+                          child: Text(role, style: const TextStyle(color: Colors.white, shadows: [Shadow(color: Colors.black54, offset: Offset(1,1), blurRadius: 4)])),
+                        )).toList(),
+                        onChanged: (value) => setState(() => _selectedRole = value ?? 'pengusaha'),
+                      ),
+                      const SizedBox(height: 24),
+                      TextFormField(
+                        controller: _nameController,
+                        style: const TextStyle(color: Colors.white, shadows: [Shadow(color: Colors.black54, offset: Offset(1,1), blurRadius: 4)]),
+                        decoration: InputDecoration(
+                          labelText: 'Nama Lengkap',
+                          labelStyle: const TextStyle(color: Colors.white, shadows: [Shadow(color: Colors.black54, offset: Offset(1,1), blurRadius: 4)]),
+                          enabledBorder: OutlineInputBorder(
+                            borderSide: BorderSide(color: Colors.black54),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderSide: BorderSide(color: Colors.white),
+                          ),
+                        ),
+                        validator: (value) => value == null || value.isEmpty ? 'Masukkan nama' : null,
                       ),
                       const SizedBox(height: 16),
                       TextFormField(
                         controller: _phoneController,
-                        keyboardType: TextInputType.phone,
-                        decoration: const InputDecoration(
-                          labelText: 'Nomor Telepon',
-                          prefixIcon: Icon(Icons.phone),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.all(Radius.circular(16)),
+                        style: const TextStyle(color: Colors.white, shadows: [Shadow(color: Colors.black54, offset: Offset(1,1), blurRadius: 4)]),
+                        decoration: InputDecoration(
+                          labelText: 'No. Telepon',
+                          labelStyle: const TextStyle(color: Colors.white, shadows: [Shadow(color: Colors.black54, offset: Offset(1,1), blurRadius: 4)]),
+                          enabledBorder: OutlineInputBorder(
+                            borderSide: BorderSide(color: Colors.black54),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderSide: BorderSide(color: Colors.white),
                           ),
                         ),
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Masukkan nomor telepon';
-                          }
-                          return null;
-                        },
+                        validator: (value) => value == null || value.isEmpty ? 'Masukkan nomor telepon' : null,
                       ),
                       const SizedBox(height: 16),
                       TextFormField(
                         controller: _usernameController,
-                        decoration: const InputDecoration(
+                        style: const TextStyle(color: Colors.white, shadows: [Shadow(color: Colors.black54, offset: Offset(1,1), blurRadius: 4)]),
+                        decoration: InputDecoration(
                           labelText: 'Username',
-                          prefixIcon: Icon(Icons.person_outline),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.all(Radius.circular(16)),
+                          labelStyle: const TextStyle(color: Colors.white, shadows: [Shadow(color: Colors.black54, offset: Offset(1,1), blurRadius: 4)]),
+                          enabledBorder: OutlineInputBorder(
+                            borderSide: BorderSide(color: Colors.black54),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderSide: BorderSide(color: Colors.white),
                           ),
                         ),
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Please enter your username';
-                          }
-                          return null;
-                        },
+                        validator: (value) => value == null || value.isEmpty ? 'Masukkan username' : null,
                       ),
                       const SizedBox(height: 16),
                       TextFormField(
                         controller: _passwordController,
                         obscureText: _obscureText,
+                        style: const TextStyle(color: Colors.white, shadows: [Shadow(color: Colors.black54, offset: Offset(1,1), blurRadius: 4)]),
                         decoration: InputDecoration(
                           labelText: 'Password',
-                          prefixIcon: const Icon(Icons.lock_outline),
-                          border: const OutlineInputBorder(
-                            borderRadius: BorderRadius.all(Radius.circular(16)),
+                          labelStyle: const TextStyle(color: Colors.white, shadows: [Shadow(color: Colors.black54, offset: Offset(1,1), blurRadius: 4)]),
+                          enabledBorder: OutlineInputBorder(
+                            borderSide: BorderSide(color: Colors.black54),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderSide: BorderSide(color: Colors.white),
                           ),
                           suffixIcon: IconButton(
-                            icon: Icon(_obscureText ? Icons.visibility : Icons.visibility_off),
-                            onPressed: () {
-                              setState(() {
-                                _obscureText = !_obscureText;
-                              });
-                            },
+                            icon: Icon(_obscureText ? Icons.visibility : Icons.visibility_off, color: Colors.black54),
+                            onPressed: () => setState(() => _obscureText = !_obscureText),
                           ),
                         ),
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Please enter your password';
-                          }
-                          return null;
-                        },
+                        validator: (value) => value == null || value.isEmpty ? 'Masukkan password' : null,
                       ),
                       const SizedBox(height: 32),
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
                           style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            backgroundColor: const Color(0xFFF9C8D9), // pink pastel
+                            backgroundColor: Colors.black,
                             foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
                           ),
                           onPressed: _register,
-                          child: const Text('Register'),
+                          child: const Text('Daftar', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.white, shadows: [Shadow(color: Colors.black54, offset: Offset(1,1), blurRadius: 4)])),
                         ),
                       ),
                     ],

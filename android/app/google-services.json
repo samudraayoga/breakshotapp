@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "741452702044",
+    "project_id": "rumahbilliard-f153c",
+    "storage_bucket": "rumahbilliard-f153c.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:741452702044:android:d9172cd2a362680ae2a199",
+        "android_client_info": {
+          "package_name": "com.example.pakbagus"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDfBDY3jjjwsP9lmY1sqj2r-xKIYD0zFms"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
