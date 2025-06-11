@@ -44,8 +44,8 @@ class _ProfilePageState extends State<ProfilePage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Profil Pengguna', style: TextStyle(color: Colors.white, shadows: [Shadow(color: Colors.black54, offset: Offset(1,1), blurRadius: 4)])),
-        backgroundColor: Colors.black,
-        foregroundColor: Colors.white,
+        backgroundColor: Colors.black, // Warna AppBar (hitam)
+        foregroundColor: Colors.white, // Warna teks/icon AppBar (putih)
         elevation: 0,
       ),
       body: Container(
@@ -65,7 +65,7 @@ class _ProfilePageState extends State<ProfilePage> {
         child: Center(
           child: Card(
             elevation: 8,
-            color: Colors.black,
+            color: Colors.black, // Warna utama kartu profil (hitam)
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(24),
             ),
@@ -95,8 +95,8 @@ class _ProfilePageState extends State<ProfilePage> {
                     width: double.infinity,
                     child: ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.black,
-                        foregroundColor: Colors.white,
+                        backgroundColor: Colors.black, // Warna tombol (hitam)
+                        foregroundColor: Colors.white, // Warna teks/icon tombol (putih)
                         padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
                       onPressed: _decryptPassword,
@@ -116,8 +116,8 @@ class _ProfilePageState extends State<ProfilePage> {
                     width: double.infinity,
                     child: ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red[900],
-                        foregroundColor: Colors.white,
+                        backgroundColor: Colors.red[900], // Warna tombol logout (merah gelap)
+                        foregroundColor: Colors.white, // Warna teks/icon tombol logout (putih)
                         padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
                       onPressed: () async {

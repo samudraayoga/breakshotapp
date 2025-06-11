@@ -7,6 +7,7 @@ class ShopDashboardPage extends StatelessWidget {
   final double? balance;
   final List<InventoryItem> cartItems;
   final void Function(int) onAddToCart;
+  final void Function(int) onRemoveFromCart;
   final VoidCallback onShowCartDialog;
 
   const ShopDashboardPage({
@@ -15,6 +16,7 @@ class ShopDashboardPage extends StatelessWidget {
     required this.balance,
     required this.cartItems,
     required this.onAddToCart,
+    required this.onRemoveFromCart,
     required this.onShowCartDialog,
   });
 
@@ -32,6 +34,12 @@ class ShopDashboardPage extends StatelessWidget {
           shopItems: shopItems,
           balance: balance,
           addToCart: onAddToCart,
+          onRemoveFromCart: onRemoveFromCart,
+          getCartQty: (int i) {
+            final item = shopItems[i];
+            final idx = cartItems.indexWhere((e) => e.kode == item.kode);
+            return idx != -1 ? cartItems[idx].jumlah : 0;
+          },
           showOrderHistoryDialog: () {},
           showCartDialog: onShowCartDialog,
         ),

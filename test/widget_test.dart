@@ -10,7 +10,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:pakbagus/main.dart';
 
 void main() {
-  testWidgets('Login page shows Self-care title', (WidgetTester tester) async {
+  testWidgets('Login page shows Breakshot title', (WidgetTester tester) async {
     await tester.pumpWidget(const MyApp(isLoggedIn: false));
     expect(find.text('Self-care'), findsOneWidget);
     expect(find.text('Login'), findsOneWidget);

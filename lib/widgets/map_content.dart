@@ -14,7 +14,7 @@ class MapContent extends StatelessWidget {
   final VoidCallback onZoomOut;
 
   const MapContent({
-    Key? key,
+    super.key,
     required this.center,
     required this.currentPosition,
     required this.mapController,
@@ -23,7 +23,7 @@ class MapContent extends StatelessWidget {
     required this.onGetCurrentLocation,
     required this.onZoomIn,
     required this.onZoomOut,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

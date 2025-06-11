@@ -8,14 +8,11 @@ import 'services/user_service.dart';
 import 'services/inventory_service.dart';
 import 'services/order_service.dart';
 import 'widgets/topup_dialog.dart';
-import 'widgets/shop_dashboard_page.dart';
-import 'widgets/home_content.dart';
+import 'ui.dart';
 import 'widgets/shop_cart_dialog.dart';
-import 'widgets/map_content.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:flutter_map/flutter_map.dart';
-import 'widgets/profile_content.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:geolocator/geolocator.dart';
 
 class HomePage extends StatefulWidget {
@@ -32,9 +29,8 @@ class _HomePageState extends State<HomePage> {
   String? username;
   List<InventoryItem> _shopItems = [];
   double? _balance;
-  List<InventoryItem> _cartItems = [];
+  final List<InventoryItem> _cartItems = [];
   List<myorder.Order> _orderHistory = [];
-  bool _isLoading = true;
 
   // Tambahkan state untuk konversi mata uang
   String _selectedCurrency = 'IDR';
@@ -62,6 +58,18 @@ class _HomePageState extends State<HomePage> {
 
   // Daftar marker statis rumah billiard
   final List<Map<String, dynamic>> _billiardMarkers = [
+    {
+      'name': 'Amora Billiard',
+      'point': LatLng(-7.765072296340974, 110.41447984627699),
+    },
+    {
+      'name': 'Om Billiard Jogja',
+      'point': LatLng(-7.782719652107371, 110.38992681002497),
+    },
+    {
+      'name': 'Mille Billiard',
+      'point': LatLng(-7.78331392238846, 110.39055416955144),
+    },
     {
       'name': 'Five Seven',
       'point': LatLng(-7.770281152797553, 110.40488150682984),
@@ -124,11 +132,10 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _loadInventory() async {
-    setState(() { _isLoading = true; });
+    setState(() { });
     final items = await InventoryService.getAllItems();
     setState(() {
       _shopItems = items;
-      _isLoading = false;
     });
   }
 
@@ -164,7 +171,15 @@ class _HomePageState extends State<HomePage> {
       builder: (context) => TopUpDialog(
         controller: controller,
         onTopUp: () async {
-          final value = double.tryParse(controller.text) ?? 0;
+          final value = double.tryParse(controller.text.replaceAll('.', '')) ?? 0;
+          const double maxTopUp = 9999999999;
+          if (value > maxTopUp) {
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Maksimal top up Rp9.999.999.999')),
+            );
+            return;
+          }
           if (value > 0) {
             await _updateBalance((_balance ?? 0) + value);
             if (!mounted) return;
@@ -246,7 +261,7 @@ class _HomePageState extends State<HomePage> {
       _cartItems.clear();
     });
     await _saveOrderHistory();
-    // Update pengusaha order history and balance (jika ada global summary)
+    // Update pengusaha order history (jika ada global summary)
     await _updatePengusahaOrderHistoryAndBalance(order);
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Checkout berhasil! Stok dan saldo terupdate.')),
@@ -254,19 +269,14 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _updatePengusahaOrderHistoryAndBalance(myorder.Order order) async {
-    // Add to global order history and update pengusaha balance in Firestore
+    // Add to global order history (summary)
     await OrderService.addOrderToAll(order);
-    // Find pengusaha user and update balance
-    final pengusaha = await UserService.getPengusahaUser();
-    if (pengusaha != null) {
-      pengusaha.balance += order.total;
-      await UserService.saveUser(pengusaha);
-    }
+    // Hapus update saldo pengusaha di sini, karena sudah diupdate per item pada proses checkout.
+    // Jika ingin summary, lakukan di dashboard pengusaha saja.
   }
 
-  // Menentukan nama rumah billiard terdekat
-  String _getNearestBilliardName() {
-    LatLng ref = _currentPosition ?? _defaultCenter;
+  // Menentukan nama rumah billiard terdekat dari posisi tertentu
+  String _getNearestBilliardNameWithPos(LatLng ref) {
     double minDist = double.infinity;
     String nearest = _billiardMarkers.first['name'];
     for (final marker in _billiardMarkers) {
@@ -278,24 +288,6 @@ class _HomePageState extends State<HomePage> {
       }
     }
     return nearest;
-  }
-
-  void _onNavBarTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
-    if (index == 1) {
-      // Tampilkan notifikasi saat buka tab Map
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        final nearest = _getNearestBilliardName();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Halo $username, rumah billiard terdekat saat ini adalah $nearest'),
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      });
-    }
   }
 
   void _getCurrentLocation() async {
@@ -320,14 +312,15 @@ class _HomePageState extends State<HomePage> {
         return;
       }
       final position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+      final newLatLng = LatLng(position.latitude, position.longitude);
       setState(() {
-        _currentPosition = LatLng(position.latitude, position.longitude);
+        _currentPosition = newLatLng;
         _gettingLocation = false;
       });
-      _mapController.move(_currentPosition!, _currentZoom);
-      // Tampilkan notifikasi rumah billiard terdekat setelah refresh lokasi
+      _mapController.move(newLatLng, _currentZoom);
+      // Tampilkan notifikasi rumah billiard terdekat dengan posisi terbaru
       if (mounted) {
-        final nearest = _getNearestBilliardName();
+        final nearest = _getNearestBilliardNameWithPos(newLatLng);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('halo $username, rumah billiard terdekat saat ini adalah $nearest'),
@@ -350,47 +343,67 @@ class _HomePageState extends State<HomePage> {
     _mapController.move(_currentPosition ?? _defaultCenter, _currentZoom);
   }
 
+  void _removeFromCart(int i) {
+    final item = _shopItems[i];
+    final idx = _cartItems.indexWhere((e) => e.kode == item.kode);
+    if (idx != -1) {
+      if (_cartItems[idx].jumlah > 1) {
+        setState(() {
+          _cartItems[idx].jumlah--;
+        });
+      } else {
+        setState(() {
+          _cartItems.removeAt(idx);
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    Widget bodyContent;
-    if (_selectedIndex == 0) {
-      if (_isLoading) {
-        bodyContent = const Center(child: CircularProgressIndicator(color: Colors.white));
-      } else {
-        bodyContent = HomeContent(
-          name: name,
-          affirmation: affirmation,
-          balance: _balance,
-          selectedCurrency: _selectedCurrency,
-          currencySymbols: _currencySymbols,
-          currencyRates: _currencyRates,
-          onShowTopUpDialog: _showTopUpDialog,
-          onCurrencyChanged: (val) {
-            if (val != null) setState(() => _selectedCurrency = val);
-          },
-          shopDashboard: const SizedBox.shrink(),
-        );
-      }
-    } else if (_selectedIndex == 1) {
-      bodyContent = MapContent(
-        center: _defaultCenter,
-        currentPosition: _currentPosition,
-        mapController: _mapController,
-        currentZoom: _currentZoom,
-        gettingLocation: _gettingLocation,
-        onGetCurrentLocation: _getCurrentLocation,
-        onZoomIn: _zoomIn,
-        onZoomOut: _zoomOut,
-      );
-    } else if (_selectedIndex == 2) {
-      bodyContent = ShopDashboardPage(
-        shopItems: _shopItems,
-        balance: _balance,
-        cartItems: _cartItems,
-        onAddToCart: (int i) {
+    final theme = Theme.of(context).copyWith(
+      colorScheme: ColorScheme(
+        brightness: Brightness.dark,
+        primary: const Color(0xFF1B5E20),
+        onPrimary: Colors.white,
+        secondary: const Color(0xFFFFD600),
+        onSecondary: Colors.black,
+        error: Colors.red,
+        onError: Colors.white,
+        background: const Color(0xFF121212),
+        onBackground: Colors.white,
+        surface: const Color(0xFF2C2C2C),
+        onSurface: Colors.white,
+        surfaceVariant: const Color(0xFF232323),
+        onSurfaceVariant: Colors.white,
+        outline: Colors.grey.shade700,
+        outlineVariant: Colors.grey.shade800,
+        shadow: Colors.black,
+        scrim: Colors.black,
+        inverseSurface: Colors.white,
+        onInverseSurface: Colors.black,
+        inversePrimary: const Color(0xFF1B5E20),
+      ),
+    );
+    return CustomerHomeUI(
+      selectedIndex: _selectedIndex,
+      theme: theme,
+      name: name,
+      balance: _balance,
+      affirmation: affirmation,
+      selectedCurrency: _selectedCurrency,
+      currencySymbols: _currencySymbols,
+      currencyRates: _currencyRates,
+      onCurrencyChanged: (val) => setState(() => _selectedCurrency = val!),
+      onShowTopUpDialog: _showTopUpDialog,
+      shopItems: _shopItems,
+      cartItems: _cartItems,
+      onAddToCart: (int i) {
+        final item = _shopItems[i];
+        final idx = _cartItems.indexWhere((e) => e.kode == item.kode);
+        final qtyInCart = idx != -1 ? _cartItems[idx].jumlah : 0;
+        if (qtyInCart < item.jumlah) {
           setState(() {
-            final item = _shopItems[i];
-            final idx = _cartItems.indexWhere((e) => e.kode == item.kode);
             if (idx != -1) {
               _cartItems[idx].jumlah++;
             } else {
@@ -405,80 +418,48 @@ class _HomePageState extends State<HomePage> {
               ));
             }
           });
-        },
-        onShowCartDialog: () {
-          showDialog(
-            context: context,
-            builder: (context) => ShopCartDialog(
-              cartItems: _cartItems.map((e) => {
-                'nama': e.nama,
-                'kode': e.kode,
-                'qty': e.jumlah,
-                'harga': e.harga,
-                'imagePath': e.imagePath,
-                'ownerUsername': e.ownerUsername,
-              }).toList(),
-              cartTotal: _cartTotal,
-              onQtyChanged: (i, qty) {
-                setState(() {
-                  _cartItems[i].jumlah = qty;
-                });
-              },
-              onRemove: (i) {
-                setState(() {
-                  _cartItems.removeAt(i);
-                });
-              },
-              onCheckout: _checkoutCart,
-            ),
-          );
-        },
-      );
-    } else if (_selectedIndex == 3) {
-      bodyContent = const ProfileContent();
-    } else {
-      bodyContent = Container();
-    }
-    return Scaffold(
-      extendBodyBehindAppBar: true,
-      backgroundColor: Colors.transparent,
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Colors.black, Colors.grey[900]!, Colors.grey[800]!],
+        }
+      },
+      onRemoveFromCart: _removeFromCart,
+      onShowCartDialog: () {
+        showDialog(
+          context: context,
+          builder: (context) => ShopCartDialog(
+            cartItems: _cartItems.map((e) => {
+              'nama': e.nama,
+              'kode': e.kode,
+              'qty': e.jumlah,
+              'harga': e.harga,
+              'imagePath': e.imagePath,
+              'ownerUsername': e.ownerUsername,
+            }).toList(),
+            cartTotal: _cartTotal,
+            onQtyChanged: (i, qty) {
+              setState(() {
+                _cartItems[i].jumlah = qty;
+              });
+            },
+            onRemove: (i) {
+              setState(() {
+                _cartItems.removeAt(i);
+              });
+            },
+            onCheckout: _checkoutCart,
           ),
-        ),
-        child: SafeArea(child: bodyContent),
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        onTap: _onNavBarTapped,
-        selectedItemColor: Colors.blueAccent,
-        unselectedItemColor: Colors.grey[500],
-        backgroundColor: Colors.white,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: 'Home',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.map),
-            label: 'Map',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.shopping_cart),
-            label: 'Cart',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person),
-            label: 'Profile',
-          ),
-        ],
-      ),
+        );
+      },
+      cartTotal: _cartTotal,
+      onCheckoutCart: _checkoutCart,
+      defaultCenter: _defaultCenter,
+      currentPosition: _currentPosition,
+      mapController: _mapController,
+      currentZoom: _currentZoom,
+      onZoomIn: _zoomIn,
+      onZoomOut: _zoomOut,
+      onGetCurrentLocation: _getCurrentLocation,
+      gettingLocation: _gettingLocation,
+      onProfileLogout: () {}, // Implement if needed
+      onNavBarTapped: (i) => setState(() => _selectedIndex = i),
     );
   }
 }

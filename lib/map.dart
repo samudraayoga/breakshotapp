@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
-class MapSection extends StatelessWidget {
+class MapSection extends StatefulWidget {
   final LatLng center;
   final LatLng? currentPosition;
   final MapController mapController;
@@ -25,14 +25,84 @@ class MapSection extends StatelessWidget {
   });
 
   @override
+  State<MapSection> createState() => _MapSectionState();
+}
+
+class _MapSectionState extends State<MapSection> {
+  LatLng? _destination;
+
+  void _showKunjungiDialog(String name, LatLng point) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(name),
+        content: const Text('Ingin mengunjungi lokasi ini?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              setState(() {
+                _destination = point;
+              });
+              widget.mapController.move(point, widget.currentZoom);
+              Navigator.of(context).pop();
+            },
+            child: const Text('Kunjungi'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final List<Map<String, dynamic>> billiardMarkers = [
+      {
+        'name': 'Amora Billiard',
+        'point': LatLng(-7.765072296340974, 110.41447984627699),
+        'color': Colors.green,
+      },
+      {
+        'name': 'Om Billiard Jogja',
+        'point': LatLng(-7.782719652107371, 110.38992681002497),
+        'color': Colors.blue,
+      },
+      {
+        'name': 'Mille Billiard',
+        'point': LatLng(-7.78331392238846, 110.39055416955144),
+        'color': Colors.red,
+      },
+      {
+        'name': 'Five Seven',
+        'point': LatLng(-7.770281152797553, 110.40488150682984),
+        'color': Colors.orange,
+      },
+      {
+        'name': 'Simple Chapter 07',
+        'point': LatLng(-7.774830907152643, 110.40393736945487),
+        'color': Colors.purple,
+      },
+      {
+        'name': 'The Gardens',
+        'point': LatLng(-7.772449733457909, 110.40844348051856),
+        'color': Colors.teal,
+      },
+      {
+        'name': 'Zon Billiard',
+        'point': LatLng(-7.773215112242821, 110.41007426371505),
+        'color': Colors.yellow,
+      },
+    ];
     return Stack(
       children: [
         FlutterMap(
-          mapController: mapController,
+          mapController: widget.mapController,
           options: MapOptions(
-            initialCenter: center,
-            initialZoom: currentZoom,
+            initialCenter: widget.center,
+            initialZoom: widget.currentZoom,
             onPositionChanged: (position, hasGesture) {},
           ),
           children: [
@@ -40,14 +110,23 @@ class MapSection extends StatelessWidget {
               urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
               subdomains: ['a', 'b', 'c'],
             ),
+            if (widget.currentPosition != null && _destination != null)
+              PolylineLayer(
+                polylines: [
+                  Polyline(
+                    points: [widget.currentPosition!, _destination!],
+                    color: Colors.blueAccent,
+                    strokeWidth: 5,
+                  ),
+                ],
+              ),
             MarkerLayer(
               markers: [
-                // Marker lokasi user (dinamis)
-                if (currentPosition != null)
+                if (widget.currentPosition != null)
                   Marker(
                     width: 60.0,
                     height: 60.0,
-                    point: currentPosition!,
+                    point: widget.currentPosition!,
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: const [
@@ -56,12 +135,11 @@ class MapSection extends StatelessWidget {
                       ],
                     ),
                   ),
-                // Marker default center jika user belum ada lokasi
-                if (currentPosition == null)
+                if (widget.currentPosition == null)
                   Marker(
                     width: 60.0,
                     height: 60.0,
-                    point: center,
+                    point: widget.center,
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: const [
@@ -70,102 +148,27 @@ class MapSection extends StatelessWidget {
                       ],
                     ),
                   ),
-                // Marker statis rumah billiard 1
-                Marker(
+                // Marker statis rumah billiard interaktif
+                ...billiardMarkers.map((marker) => Marker(
                   width: 60.0,
                   height: 60.0,
-                  point: LatLng(-7.765072296340974, 110.41447984627699),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.sports_bar, color: Colors.green, size: 36),
-                      const Text('Amora Billiard', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, shadows: [Shadow(color: Colors.black54, offset: Offset(1,1), blurRadius: 4)])),
-                    ],
+                  point: marker['point'],
+                  child: GestureDetector(
+                    onTap: () => _showKunjungiDialog(marker['name'], marker['point']),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.sports_bar, color: marker['color'], size: 36),
+                        Text(marker['name'], style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, shadows: [Shadow(color: Colors.black54, offset: Offset(1,1), blurRadius: 4)])),
+                      ],
+                    ),
                   ),
-                ),
-                // Marker statis rumah billiard 2
-                Marker(
-                  width: 60.0,
-                  height: 60.0,
-                  point: LatLng(-7.782719652107371, 110.38992681002497),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.sports_bar, color: Colors.blue, size: 36),
-                      const Text('Om Billiard Jogja', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, shadows: [Shadow(color: Colors.black54, offset: Offset(1,1), blurRadius: 4)])),
-                    ],
-                  ),
-                ),
-                // Marker statis rumah billiard 3
-                Marker(
-                  width: 60.0,
-                  height: 60.0,
-                  point: LatLng(-7.78331392238846, 110.39055416955144),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.sports_bar, color: Colors.red, size: 36),
-                      const Text('Mille Billiard', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, shadows: [Shadow(color: Colors.black54, offset: Offset(1,1), blurRadius: 4)])),
-                    ],
-                  ),
-                ),
-                // Marker statis rumah billiard 4: Five Seven
-                Marker(
-                  width: 60.0,
-                  height: 60.0,
-                  point: LatLng(-7.770281152797553, 110.40488150682984),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.sports_bar, color: Colors.orange, size: 36),
-                      const Text('Five Seven', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, shadows: [Shadow(color: Colors.black54, offset: Offset(1,1), blurRadius: 4)])),
-                    ],
-                  ),
-                ),
-                // Marker statis rumah billiard 5: Simple Chapter 07
-                Marker(
-                  width: 60.0,
-                  height: 60.0,
-                  point: LatLng(-7.774830907152643, 110.40393736945487),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.sports_bar, color: Colors.purple, size: 36),
-                      const Text('Simple Chapter 07', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, shadows: [Shadow(color: Colors.black54, offset: Offset(1,1), blurRadius: 4)])),
-                    ],
-                  ),
-                ),
-                // Marker statis rumah billiard 6: The Gardens
-                Marker(
-                  width: 60.0,
-                  height: 60.0,
-                  point: LatLng(-7.772449733457909, 110.40844348051856),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.sports_bar, color: Colors.teal, size: 36),
-                      const Text('The Gardens', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, shadows: [Shadow(color: Colors.black54, offset: Offset(1,1), blurRadius: 4)])),
-                    ],
-                  ),
-                ),
-                // Marker statis rumah billiard 7: Zon Billiard
-                Marker(
-                  width: 60.0,
-                  height: 60.0,
-                  point: LatLng(-7.773215112242821, 110.41007426371505),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.sports_bar, color: Colors.yellow, size: 36),
-                      const Text('Zon Billiard', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, shadows: [Shadow(color: Colors.black54, offset: Offset(1,1), blurRadius: 4)])),
-                    ],
-                  ),
-                ),
+                )),
               ],
             ),
           ],
         ),
-        if (gettingLocation)
+        if (widget.gettingLocation)
           const Positioned(
             top: 20,
             left: 0,
@@ -200,8 +203,8 @@ class MapSection extends StatelessWidget {
               FloatingActionButton(
                 heroTag: 'zoom_in',
                 mini: true,
-                backgroundColor: Colors.white,
-                onPressed: onZoomIn,
+                backgroundColor: Colors.white, // Warna tombol zoom in/out (putih)
+                onPressed: widget.onZoomIn,
                 tooltip: 'Zoom In',
                 child: const Icon(Icons.add, color: Color.fromARGB(255, 46, 204, 113)),
               ),
@@ -209,16 +212,16 @@ class MapSection extends StatelessWidget {
               FloatingActionButton(
                 heroTag: 'zoom_out',
                 mini: true,
-                backgroundColor: Colors.white,
-                onPressed: onZoomOut,
+                backgroundColor: Colors.white, // Warna tombol zoom in/out (putih)
+                onPressed: widget.onZoomOut,
                 tooltip: 'Zoom Out',
                 child: const Icon(Icons.remove, color: Color.fromARGB(255, 46, 204, 113)),
               ),
               const SizedBox(height: 16),
               FloatingActionButton(
                 heroTag: 'my_location',
-                backgroundColor: Colors.grey,
-                onPressed: onGetCurrentLocation,
+                backgroundColor: Colors.grey, // Warna tombol lokasi (abu-abu)
+                onPressed: widget.onGetCurrentLocation,
                 tooltip: 'Refresh Lokasi',
                 child: const Icon(Icons.my_location, color: Colors.white),
               ),

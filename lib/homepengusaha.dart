@@ -1,12 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'profile.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
-import 'package:geolocator/geolocator.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'services/inventory_service.dart';
 import 'models/inventory_item.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class HomePengusahaPage extends StatefulWidget {
   const HomePengusahaPage({super.key});
@@ -17,11 +15,6 @@ class HomePengusahaPage extends StatefulWidget {
 
 class _HomePengusahaPageState extends State<HomePengusahaPage> {
   int _selectedIndex = 0;
-  final LatLng _defaultCenter = LatLng(-7.7691672922501915, 110.40738797582647);
-  LatLng? _currentPosition;
-  bool _gettingLocation = false;
-  late final MapController _mapController = MapController();
-  double _currentZoom = 16.0;
 
   // Inventory state
   List<Map<String, dynamic>> _items = [];
@@ -36,47 +29,8 @@ class _HomePengusahaPageState extends State<HomePengusahaPage> {
     setState(() {
       _selectedIndex = index;
     });
-  }
-
-  void _getCurrentLocation() async {
-    setState(() {
-      _gettingLocation = true;
-    });
-    // Ambil lokasi GPS asli
-    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) {
-      setState(() { _gettingLocation = false; });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Location service is disabled.')),
-      );
-      return;
-    }
-    LocationPermission permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) {
-        setState(() { _gettingLocation = false; });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Location permission denied.')),
-        );
-        return;
-      }
-    }
-    if (permission == LocationPermission.deniedForever) {
-      setState(() { _gettingLocation = false; });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Location permission permanently denied.')),
-      );
-      return;
-    }
-    Position position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
-    setState(() {
-      _currentPosition = LatLng(position.latitude, position.longitude);
-      _gettingLocation = false;
-    });
-    if (_currentPosition != null) {
-      _mapController.move(_currentPosition!, _currentZoom);
-    }
+    // Tambahan: refresh saldo pengusaha setiap kali tab diganti
+    _loadPengusahaBalanceFromFirestore();
   }
 
   @override
@@ -241,52 +195,68 @@ class _HomePengusahaPageState extends State<HomePengusahaPage> {
     );
   }
 
-  Widget _buildInventoryContent() {
-    return Stack(
-      children: [
-        ListView.separated(
-          padding: const EdgeInsets.all(20),
-          itemCount: _items.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 12),
-          itemBuilder: (context, i) {
-            final item = _items[i];
-            return ListTile(
-              tileColor: Colors.grey[200],
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              leading: item['imagePath'] != null && item['imagePath'].toString().isNotEmpty
-                  ? ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: Image.network(item['imagePath'], width: 48, height: 48, fit: BoxFit.cover, errorBuilder: (c, e, s) => const Icon(Icons.broken_image, size: 40, color: Colors.grey)),
-                    )
-                  : const Icon(Icons.image, size: 40, color: Colors.grey),
-              title: Text(item['nama'], style: const TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: Text('Kode: ${item['kode']} | Jumlah: ${item['jumlah']} | Harga: Rp${item['harga']} | Jenis: ${item['jenis']}'),
-              trailing: IconButton(
-                icon: const Icon(Icons.edit, color: Colors.blueAccent),
-                onPressed: () => _showItemDialog(item: item, index: i),
-              ),
-            );
-          },
-        ),
-        Positioned(
-          bottom: 24,
-          right: 24,
-          child: FloatingActionButton(
-            onPressed: () => _showItemDialog(),
-            backgroundColor: Colors.blueAccent,
-            child: const Icon(Icons.add, color: Colors.white),
-            tooltip: 'Tambah Barang',
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context).copyWith(
+      colorScheme: ColorScheme(
+        brightness: Brightness.dark,
+        primary: const Color(0xFF1B5E20), // dark green
+        onPrimary: Colors.white,
+        secondary: const Color(0xFFFFD600), // vibrant yellow
+        onSecondary: Colors.black,
+        error: Colors.red,
+        onError: Colors.white,
+        background: const Color(0xFF121212), // dark grey
+        onBackground: Colors.white,
+        surface: const Color(0xFF2C2C2C), // charcoal grey
+        onSurface: Colors.white,
+        surfaceVariant: const Color(0xFF232323),
+        onSurfaceVariant: Colors.white,
+        outline: Colors.grey.shade700,
+        outlineVariant: Colors.grey.shade800,
+        shadow: Colors.black,
+        scrim: Colors.black,
+        inverseSurface: Colors.white,
+        onInverseSurface: Colors.black,
+        inversePrimary: const Color(0xFF1B5E20),
+      ),
+    );
+    Widget bodyContent;
+    if (_selectedIndex == 0) {
+      bodyContent = _buildDashboardContent(theme);
+    } else if (_selectedIndex == 1) {
+      bodyContent = _buildInventoryContent(theme);
+    } else {
+      bodyContent = const ProfilePage();
+    }
+    return Scaffold(
+      backgroundColor: theme.colorScheme.background, // Warna latar belakang utama aplikasi
+      body: SafeArea(child: bodyContent),
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _selectedIndex,
+        onTap: _onNavBarTapped,
+        selectedItemColor: theme.colorScheme.primary, // Warna ikon/tab terpilih
+        unselectedItemColor: Colors.grey[500], // Warna ikon/tab tidak terpilih
+        backgroundColor: theme.colorScheme.surface, // Warna latar belakang BottomNavigationBar
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.dashboard),
+            label: 'Dashboard',
           ),
-        ),
-      ],
+          BottomNavigationBarItem(
+            icon: Icon(Icons.inventory),
+            label: 'Inventory',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person),
+            label: 'Profile',
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildProfileContent() {
-    return const ProfilePage();
-  }
-
-  Widget _buildDashboardContent() {
+  Widget _buildDashboardContent(ThemeData theme) {
     int totalTransaksi = _orderHistory.length;
     int totalBarangTerjual = 0;
     double totalPendapatan = 0;
@@ -304,16 +274,16 @@ class _HomePengusahaPageState extends State<HomePengusahaPage> {
           const SizedBox(height: 16),
           Row(
             children: [
-              const Icon(Icons.dashboard, size: 40, color: Color.fromARGB(255, 46, 204, 113)),
+              Icon(Icons.dashboard, size: 40, color: theme.colorScheme.primary),
               const SizedBox(width: 12),
-              const Text('Dashboard Pengusaha', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white, shadows: [Shadow(offset: Offset(0,1), blurRadius: 2, color: Colors.black54)])),
+              Text('Dashboard Pengusaha', style: GoogleFonts.montserrat(fontSize: 24, fontWeight: FontWeight.bold, color: theme.colorScheme.primary)),
             ],
           ),
           const SizedBox(height: 24),
           Card(
-            color: Colors.blueGrey[900], // Warna gelap untuk kontras
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            elevation: 4,
+            color: theme.colorScheme.surface,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            elevation: 8,
             child: Padding(
               padding: const EdgeInsets.all(20.0),
               child: Row(
@@ -322,12 +292,12 @@ class _HomePengusahaPageState extends State<HomePengusahaPage> {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Saldo Pengusaha', style: TextStyle(color: Colors.white70)),
+                      Text('Saldo Pengusaha', style: GoogleFonts.montserrat(color: theme.colorScheme.secondary, fontWeight: FontWeight.w600)),
                       const SizedBox(height: 8),
-                      Text('Rp${_pengusahaBalance.toStringAsFixed(0)}', style: const TextStyle(fontSize: 24, color: Colors.white, fontWeight: FontWeight.bold)),
+                      Text('Rp${_pengusahaBalance.toStringAsFixed(0)}', style: GoogleFonts.montserrat(fontSize: 24, color: theme.colorScheme.onSurface, fontWeight: FontWeight.bold)),
                     ],
                   ),
-                  const Icon(Icons.account_balance_wallet, color: Color.fromARGB(255, 46, 204, 113), size: 40),
+                  Icon(Icons.account_balance_wallet, color: theme.colorScheme.primary, size: 40),
                 ],
               ),
             ),
@@ -337,14 +307,16 @@ class _HomePengusahaPageState extends State<HomePengusahaPage> {
             children: [
               Expanded(
                 child: Card(
-                  color: Colors.blueGrey[900],
+                  color: theme.colorScheme.surface,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  elevation: 4,
                   child: Padding(
                     padding: const EdgeInsets.all(16.0),
                     child: Column(
                       children: [
-                        const Text('Transaksi', style: TextStyle(fontWeight: FontWeight.bold)),
+                        Text('Transaksi', style: GoogleFonts.montserrat(fontWeight: FontWeight.bold, color: theme.colorScheme.secondary)),
                         const SizedBox(height: 8),
-                        Text('$totalTransaksi', style: const TextStyle(fontSize: 20)),
+                        Text('$totalTransaksi', style: GoogleFonts.montserrat(fontSize: 20, color: theme.colorScheme.onSurface)),
                       ],
                     ),
                   ),
@@ -352,14 +324,16 @@ class _HomePengusahaPageState extends State<HomePengusahaPage> {
               ),
               Expanded(
                 child: Card(
-                  color: Colors.blueGrey[900],
+                  color: theme.colorScheme.surface,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  elevation: 4,
                   child: Padding(
                     padding: const EdgeInsets.all(16.0),
                     child: Column(
                       children: [
-                        const Text('Barang Terjual', style: TextStyle(fontWeight: FontWeight.bold)),
+                        Text('Barang Terjual', style: GoogleFonts.montserrat(fontWeight: FontWeight.bold, color: theme.colorScheme.secondary)),
                         const SizedBox(height: 8),
-                        Text('$totalBarangTerjual', style: const TextStyle(fontSize: 20)),
+                        Text('$totalBarangTerjual', style: GoogleFonts.montserrat(fontSize: 20, color: theme.colorScheme.onSurface)),
                       ],
                     ),
                   ),
@@ -367,14 +341,16 @@ class _HomePengusahaPageState extends State<HomePengusahaPage> {
               ),
               Expanded(
                 child: Card(
-                  color: Colors.blueGrey[900],
+                  color: theme.colorScheme.surface,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  elevation: 4,
                   child: Padding(
                     padding: const EdgeInsets.all(16.0),
                     child: Column(
                       children: [
-                        const Text('Pendapatan', style: TextStyle(fontWeight: FontWeight.bold)),
+                        Text('Pendapatan', style: GoogleFonts.montserrat(fontWeight: FontWeight.bold, color: theme.colorScheme.secondary)),
                         const SizedBox(height: 8),
-                        Text('Rp${totalPendapatan.toStringAsFixed(0)}', style: const TextStyle(fontSize: 20)),
+                        Text('Rp${totalPendapatan.toStringAsFixed(0)}', style: GoogleFonts.montserrat(fontSize: 20, color: theme.colorScheme.onSurface)),
                       ],
                     ),
                   ),
@@ -383,10 +359,10 @@ class _HomePengusahaPageState extends State<HomePengusahaPage> {
             ],
           ),
           const SizedBox(height: 24),
-          const Text('Riwayat Transaksi Masuk', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          Text('Riwayat Transaksi Masuk', style: GoogleFonts.montserrat(fontSize: 18, fontWeight: FontWeight.bold, color: theme.colorScheme.primary)),
           const SizedBox(height: 12),
           _orderHistory.isEmpty
-              ? const Text('Belum ada transaksi masuk.')
+              ? Text('Belum ada transaksi masuk.', style: GoogleFonts.montserrat(color: theme.colorScheme.onSurface))
               : ListView.separated(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
@@ -396,15 +372,16 @@ class _HomePengusahaPageState extends State<HomePengusahaPage> {
                     final order = _orderHistory[i];
                     final date = DateTime.tryParse(order['date'] ?? '') ?? DateTime.now();
                     return Card(
-                      color: Colors.white,
+                      color: theme.colorScheme.surfaceVariant,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                       child: Padding(
                         padding: const EdgeInsets.all(12.0),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('Tanggal: ${date.day}/${date.month}/${date.year}  ${date.hour}:${date.minute.toString().padLeft(2, '0')}', style: const TextStyle(fontWeight: FontWeight.bold)),
-                            ...List<Widget>.from((order['items'] as List).map((item) => Text('- ${item['nama']} x${item['qty']} (Rp${item['harga']})'))),
-                            Text('Total: Rp${order['total'].toStringAsFixed(0)}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                            Text('Tanggal: ${date.day}/${date.month}/${date.year}  ${date.hour}:${date.minute.toString().padLeft(2, '0')}', style: GoogleFonts.montserrat(fontWeight: FontWeight.bold, color: theme.colorScheme.primary)),
+                            ...List<Widget>.from((order['items'] as List).map((item) => Text('- ${item['nama']} x${item['qty']} (Rp${item['harga']})', style: GoogleFonts.montserrat(color: theme.colorScheme.onSurface)))),
+                            Text('Total: Rp${order['total'].toStringAsFixed(0)}', style: GoogleFonts.montserrat(fontWeight: FontWeight.bold, color: theme.colorScheme.secondary)),
                           ],
                         ),
                       ),
@@ -413,6 +390,47 @@ class _HomePengusahaPageState extends State<HomePengusahaPage> {
                 ),
         ],
       ),
+    );
+  }
+
+  Widget _buildInventoryContent(ThemeData theme) {
+    return Stack(
+      children: [
+        ListView.separated(
+          padding: const EdgeInsets.all(20),
+          itemCount: _items.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 12),
+          itemBuilder: (context, i) {
+            final item = _items[i];
+            return ListTile(
+              tileColor: theme.colorScheme.surfaceVariant,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              leading: item['imagePath'] != null && item['imagePath'].toString().isNotEmpty
+                  ? ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.network(item['imagePath'], width: 48, height: 48, fit: BoxFit.cover, errorBuilder: (c, e, s) => const Icon(Icons.broken_image, size: 40, color: Colors.grey)),
+                    )
+                  : const Icon(Icons.image, size: 40, color: Colors.grey),
+              title: Text(item['nama'], style: GoogleFonts.montserrat(fontWeight: FontWeight.bold, color: theme.colorScheme.onSurface)),
+              subtitle: Text('Kode: ${item['kode']} | Jumlah: ${item['jumlah']} | Harga: Rp${item['harga']} | Jenis: ${item['jenis']}', style: GoogleFonts.montserrat(color: theme.colorScheme.secondary)),
+              trailing: IconButton(
+                icon: Icon(Icons.edit, color: theme.colorScheme.primary),
+                onPressed: () => _showItemDialog(item: item, index: i),
+              ),
+            );
+          },
+        ),
+        Positioned(
+          bottom: 24,
+          right: 24,
+          child: FloatingActionButton(
+            onPressed: () => _showItemDialog(),
+            backgroundColor: theme.colorScheme.primary,
+            tooltip: 'Tambah Barang',
+            child: const Icon(Icons.add, color: Colors.white),
+          ),
+        ),
+      ],
     );
   }
 
@@ -430,44 +448,5 @@ class _HomePengusahaPageState extends State<HomePengusahaPage> {
     setState(() {
       _orderHistory = snapshot.docs.map((doc) => doc.data()).toList();
     });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    Widget bodyContent;
-    if (_selectedIndex == 0) {
-      bodyContent = _buildDashboardContent();
-    } else if (_selectedIndex == 1) {
-      bodyContent = _buildInventoryContent();
-    } else if (_selectedIndex == 2) {
-      bodyContent = _buildProfileContent();
-    } else {
-      bodyContent = _buildProfileContent();
-    }
-    return Scaffold(
-      backgroundColor: Colors.grey[900],
-      body: SafeArea(child: bodyContent),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        onTap: _onNavBarTapped,
-        selectedItemColor: Colors.blueAccent,
-        unselectedItemColor: Colors.grey[500],
-        backgroundColor: Colors.white,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.dashboard),
-            label: 'Dashboard',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.inventory),
-            label: 'Inventory',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person),
-            label: 'Profile',
-          ),
-        ],
-      ),
-    );
   }
 }

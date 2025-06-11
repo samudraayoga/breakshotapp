@@ -14,7 +14,7 @@ class HomeContent extends StatelessWidget {
   final Widget shopDashboard;
 
   const HomeContent({
-    Key? key,
+    super.key,
     required this.name,
     required this.affirmation,
     required this.balance,
@@ -24,7 +24,7 @@ class HomeContent extends StatelessWidget {
     required this.onShowTopUpDialog,
     required this.onCurrencyChanged,
     required this.shopDashboard,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
